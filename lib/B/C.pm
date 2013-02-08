@@ -6069,7 +6069,6 @@ sub save_main_rest {
   print "\n";
   output_all($init_name || "perl_init");
   print "\n";
-  output_main_rest();
 
   if ( defined($module) ) {
     my $cmodule = $module ? $module : "main";
@@ -6082,7 +6081,6 @@ sub save_main_rest {
 
     print <<"EOT";
 
-#include "XSUB.h"
 XS(boot_$cmodule)
 {
     dXSARGS;
@@ -6091,11 +6089,15 @@ XS(boot_$cmodule)
     SAVETMPS;
     SAVEVPTR(PL_curpad);
     SAVEVPTR(PL_op);
-    dl_init(aTHX);
+    /* dl_init(aTHX); TODO: maybe we need this. */
     PL_curpad = AvARRAY($curpad_sym);
     PL_comppad = $curpad_sym;
-    PL_op = $start;
-    perl_run( aTHX ); /* Perl_runops_standard(aTHX); */
+    PL_op = &$start;
+#ifdef DEBUGGING
+    Perl_runops_debug(aTHX);
+#else
+    Perl_runops_standard(aTHX);
+#endif
     FREETMPS;
     LEAVE;
     ST(0) = &PL_sv_yes;
@@ -6104,6 +6106,7 @@ XS(boot_$cmodule)
 EOT
 
   } else {
+    output_main_rest();
     output_main();
   }
 }

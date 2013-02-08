@@ -64,6 +64,7 @@ use Config;
 use Fcntl qw(:DEFAULT :flock);
 use File::Temp qw(tempfile);
 use File::Basename qw(basename dirname);
+use File::Path qw(mkpath);
 # use Cwd;
 use Pod::Usage;
 # Time::HiRes does not work with 5.6
@@ -225,6 +226,10 @@ sub parse_argv {
         $Options->{v} = 0+substr($v,2);
         @ARGV = grep !/^-v\d$/, @ARGV;
     }
+    if (my ($m) = grep /^-m(\w+)$/, @ARGV) { # TODO: until next arg without -
+        $Options->{m} = $1;
+        @ARGV = grep !/^-m(\w+)$/, @ARGV;
+    }
     if (grep /^-stash$/, @ARGV) {
         $Options->{stash}++;
         @ARGV = grep !/^-stash$/, @ARGV;
@@ -313,6 +318,7 @@ sub parse_argv {
 
     if (opt('o')) {
         $Output = opt('o');
+        $Output = relativize($Output) unless is_win32();
     } elsif (opt('B')) {
         if (opt('e')) {
             my $suffix = '.plc';
@@ -321,10 +327,27 @@ sub parse_argv {
         } else {
             $Output = basename($Input) . "c";
         }
+        $Output = relativize($Output) unless is_win32();
+    } elsif (opt('m') and !opt('e')) {
+        my $module = opt('m');
+        # shared lib along auto. see algo in DynaLoader
+        my @modparts = split(/::/,$module);
+        my $modfname = $modparts[-1];
+        $modfname = &mod2fname(\@modparts) if defined &mod2fname;
+        my $modpname = join('/',@modparts);
+        my $dlext = $Config::Config{dlext};
+        my $dir = $Config::Config{sitearch}."/pcc";
+        eval { mkpath $dir; };
+        $dir = "~/.perl5/pcc" unless -w $dir;
+        if (! -d "$dir/$modpname") {
+            mkpath "$dir/$modpname"
+              or die "perlcc -m: Failed to mkdir $dir/$modpname\n";
+        }
+        $Output = "$dir/$modpname/$modfname.$dlext";
     } else {
         $Output = ( is_win32() or $^O eq 'cygwin' ) ? 'a.exe' : 'a.out';
+        $Output = relativize($Output) unless is_win32();
     }
-    $Output = relativize($Output) unless is_win32();
     sanity_check();
 }
 
@@ -454,8 +477,7 @@ sub compile_cstyle {
     }
 
     my $options = "$addoptions$testsuite$max_line_len$staticxs$stash";
-    # This has to do the write itself, so we can't keep a lock. Life
-    # sucks.
+    # This has to do the write itself, so we can't keep a lock. Life sucks.
     my $command = "$BinPerl$taint -MO=$Backend,$options"."-o$cfile $Input";
     vprint 5, "Compiling...";
     vprint 0, "Calling $command";
