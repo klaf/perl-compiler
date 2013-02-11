@@ -23,7 +23,11 @@ Detect ExtUtils::Constant autoloaded "Your vendor has not defined"
    functions stubs. E.g. "WARNING: &Socket::AF_DATAKIT not found"
 optimize static or typed method calls. How-perl-compiles-subs-and-methods.md
 detect typed objects (my Class $obj = new Class;) (partially done)
-modularize (-m) for faster link times
+modularize (-m) for faster link times: (branch modul)
+   * add new build tool which takes module names and paths from the
+     compiler, check timestamps and create/update compiled modules.
+   * filter out non-module related code in the compiler by looking at
+     the CopFILE.
 BEGIN goto optim: skip code after BEGIN goto
   usually Carp including B in some AUTOLOAD block, issue 61
 save PMOPs in compiled form (?)
